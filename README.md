@@ -1,7 +1,7 @@
 Introduction
 ==============
 
-This is the code of [MELD-ED](https://github.com/Shao-Group/MELD-ED), including the training of a deep Locality Sensitive Multi-Embedding (LSME) function and downstream experiment:
+This is the code of MELO-ED, including the training of a deep Locality Sensitive Multi-Embedding (LSME) function and downstream experiment:
 
 - A framework that can train an (d1, d2)-LSME function with customized parameters: N, length of sequence; k, number of embedding; m dimensions, and through δ by code: new_loss_runner.py. 
 - Applying Neighbor Search by KNN: 
