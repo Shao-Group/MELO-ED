@@ -7,10 +7,10 @@ pip install -r requirements.txt
 ```
 
 ## Usage
-We use [sample-b.txt](unsafe:data/sequences/sample-b.txt) as the base set $B$ and [sample-a.txt](unsafe:data/sequences/sample-a.txt) as the query set $Q$. Given query thresholds $(d\_1, d\_2)$, the goal is for each sequence $q\\in Q$ to find all sequences $b\\in B$ with edit$(q, b)\\leq d\_1$, while avoiding reporting sequences $x\\in B$ with edit$(q, x)\\geq d\_2$. In our experiments, pairwise edit distances between $Q$ and $B$ have been computed as the evaluation ground-truth, however, this is in general not tractable for large genomic datasets.
+We use [sample-b.txt](data/sequences/sample-b.txt) as the base set $B$ and [sample-a.txt](data/sequences/sample-a.txt) as the query set $Q$. Given query thresholds $(d_1, d_2)$, the goal is for each sequence $q\in Q$ to find all sequences $b\in B$ with $\text{edit}(q, b)\leq d_1$, while avoiding reporting sequences $x\in B$ with $\text{edit}(q, x)\geq d_2$. In our experiments, pairwise edit distances between $Q$ and $B$ have been computed as the evaluation ground-truth, however, this is in general not tractable for large genomic datasets.
 
 ### Query with MELO-ED embeddings
-Embeddings for both $Q$ and $B$ are generated and stored in the same hdf5 file. For example, to perform a $(1,3)$-sensitive search using [HNSW](unsafe:1,3) 1-near-neighbor:
+Embeddings for both $Q$ and $B$ are generated and stored in the same hdf5 file. For example, to perform a $(1,3)$-sensitive search using [HNSW](https://faiss.ai/cpp_api/struct/structfaiss_1_1IndexHNSW.html) 1-near-neighbor:
 
 ```bash
 python hnsw_knn_heatmap.py 'data/embeddings/embed_sample_20k_40m_(1-3)s_10delta_bd2_10m_bn.hdf5' 1 .
@@ -19,7 +19,7 @@ generates the resulting file `embed_sample_20k_40m_(1-3)s_10delta_bd2_10m_bn.1NN
 ```bash
 python evaluate_separate_gapped.py data/ground-truth/sample.gt.threshold{1,2}.npz 'embed_sample_20k_40m_(1-3)s_10delta_bd2_10m_bn.1NN.separate.pkl'
 ```
-Note that we used ground-truth files with threshold 1 and 2 to evaluate this $(1,3)$-sensitive search because sample.gt.thresholdX.npz contains all pairs in $Q\\times B$ that has edit distance at most X. In this search, [sample.gt.threshold1.npz](data/ground-truth/sample.gt.threshold1.npz) provides all true positive pairs; whereas any reported pair not in [sample.gt.threshold1.npz](data/ground-truth/sample.gt.threshold2.npz) is a false positive.
+Note that we used ground-truth files with threshold 1 and 2 to evaluate this $(1,3)$-sensitive search because sample.gt.thresholdX.npz contains all pairs in $Q\times B$ that has edit distance at most X. In this search, [sample.gt.threshold1.npz](data/ground-truth/sample.gt.threshold1.npz) provides all true positive pairs; whereas any reported pair not in [sample.gt.threshold1.npz](data/ground-truth/sample.gt.threshold2.npz) is a false positive.
 
 ### Query with learned LSB functions
 Mapping vectors for both $Q$ and $B$ are generated and stored in the same hdf5 file. For example, to perform a $(3,4)$-sensitive search:
