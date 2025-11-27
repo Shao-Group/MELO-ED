@@ -60,9 +60,9 @@ class Inp_Model_2(nn.Module):
         return out
 
 
-class SiamNNL1(nn.Module):
+class SiamNNL1_nm(nn.Module):
     def __init__(self, cnn, flat_dim, out_dim):
-        super(SiamNNL1, self).__init__()
+        super(SiamNNL1_nm, self).__init__()
         self.cnn = cnn
         self.fc1 = nn.Sequential(
             nn.Linear(flat_dim, out_dim),
