@@ -1,7 +1,7 @@
 Introduction
 ==============
 
-This is the code of [MELD-ED](https://github.com/Shao-Group/MELD-ED), including a training of a deep Locality Sensitive Multi-Embedding (LSME) function [LSME](https://github.com/Shao-Group/tree/main/LSME) and a neighbor search procedure[neighbor_index_experiments](https://github.com/Shao-Group/MELO-ED/tree/master/neighbor_index_experiments). 
+This is the code of [MELD-ED](https://github.com/Shao-Group/MELD-ED), including a training of a deep Locality Sensitive Multi-Embedding (LSME) function [LSME](https://github.com/Shao-Group/MELD-ED/tree/main/LSME) and a neighbor search procedure[neighbor_index_experiments](https://github.com/Shao-Group/MELO-ED/tree/master/neighbor_index_experiments). 
 
 A framework that can train an (d1, d2)-LSME function with customized parameters: N, length of sequence; k, number of embedding; m dimensions, and through δ. You can train the model using the simulation dataset provided at [zenodo](https://zenodo.org/uploads/17728758), with N = 20 or N = 100, or generate simulation sequences of the length you need with the code at [simulation](https://github.com/Shao-Group/lsb-learn/tree/master/simulation). 
 
