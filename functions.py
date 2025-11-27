@@ -120,54 +120,5 @@ def mini_batch_cnn1(x, i, batch_size):
     batch_x = torch.unsqueeze(batch_x, 1)
     return batch_x
 
-#########################################Inp_module######################################################################
-
-class Inp_Layer1(nn.Module):
-    def __init__(self, in_ch, out_ch, in_dim, out_max):#out_size,
-        super(Inp_Layer1, self).__init__()
-
-        self.cnn1 = nn.Conv2d(in_ch, out_ch, (in_dim, 2), stride=1, padding="same")
-        self.cnn2 = nn.Conv2d(in_ch, out_ch, (in_dim, 3), stride=1, padding="same")
-        self.cnn3 = nn.Conv2d(in_ch, out_ch, (in_dim, 4), stride=1, padding="same")
-        self.cnn4 = nn.Conv2d(in_ch, out_ch, (in_dim, 5), stride=1, padding="same")
-        self.cnn5 = nn.Conv2d(in_ch, out_ch, (in_dim, 6), stride=1, padding="same")
-        self.maxpool = nn.MaxPool2d((1, out_max), stride=(1, 1))
-        self.flat = nn.Flatten()
-
-    def forward(self, x):
-
-        out1 = F.relu(self.cnn1(x))
-        out1 = self.maxpool(out1)
-        out2 = F.relu(self.cnn2(x))
-        out2 = self.maxpool(out2)
-        out3 = F.relu(self.cnn3(x))
-        out3 = self.maxpool(out3)
-        out4 = F.relu(self.cnn4(x))
-        out4 = self.maxpool(out4)
-
-        out5 = F.relu(self.cnn5(x))
-        out5 = self.maxpool(out5)
-        out = F.normalize(torch.cat((out1, out2, out3, out4, out5), 1))
-
-        return out
-
-class Inp_Model_2(nn.Module):
-    def __init__(self):#out_size,
-        super(Inp_Model_2, self).__init__()
-
-        self.inp_layer1 = Inp_Layer1(1, 10, 4, 3)
-        self.inp_layer2 = Inp_Layer1(50, 10, 4, 3)
-
-        self.flat = nn.Flatten()
-
-    def forward(self, x):
-
-        out = self.inp_layer1(x)
-        out = self.inp_layer2(out)
-        out = self.flat(out)
-
-        return out
-
-
 
 

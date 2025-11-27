@@ -9,178 +9,66 @@ import math
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
-from siacnn_models_gpu2 import *
+from functions import *
 
-class CNN3_kmer_8(nn.Module):
-    def __init__(self, out_ch):#out_size,
-        super(CNN3_kmer_8, self).__init__()
+#########################################Inp_module######################################################################
 
-        self.cnn1 = Block(1, 20, (4, 2), stride=1)
-        self.cnn2 = Block(20, 20, (1, 2), stride=1)
-        self.cnn3 = Block(20, 40, (1, 2), stride=1)
+class Inp_Layer1(nn.Module):
+    def __init__(self, in_ch, out_ch, in_dim, out_max):#out_size,
+        super(Inp_Layer1, self).__init__()
 
-        self.cnn4 = Block(40, 40, (1, 2), stride=1)
-        self.cnn5 = Block(40, 80, (1, 2), stride=1)
-        self.cnn6 = Block(80, 80, (1, 2), stride=1)
-        self.cnn7 = Block(80, out_ch, (1, 2), stride=1)
-        self.cnn8 = Block(out_ch, out_ch, (1, 2), stride=1)
-        self.maxpool = nn.MaxPool2d((1, 2), stride=(1, 1))
+        self.cnn1 = nn.Conv2d(in_ch, out_ch, (in_dim, 2), stride=1, padding="same")
+        self.cnn2 = nn.Conv2d(in_ch, out_ch, (in_dim, 3), stride=1, padding="same")
+        self.cnn3 = nn.Conv2d(in_ch, out_ch, (in_dim, 4), stride=1, padding="same")
+        self.cnn4 = nn.Conv2d(in_ch, out_ch, (in_dim, 5), stride=1, padding="same")
+        self.cnn5 = nn.Conv2d(in_ch, out_ch, (in_dim, 6), stride=1, padding="same")
+        self.maxpool = nn.MaxPool2d((1, out_max), stride=(1, 1))
+        self.flat = nn.Flatten()
+
+    def forward(self, x):
+
+        out1 = F.relu(self.cnn1(x))
+        out1 = self.maxpool(out1)
+        out2 = F.relu(self.cnn2(x))
+        out2 = self.maxpool(out2)
+        out3 = F.relu(self.cnn3(x))
+        out3 = self.maxpool(out3)
+        out4 = F.relu(self.cnn4(x))
+        out4 = self.maxpool(out4)
+
+        out5 = F.relu(self.cnn5(x))
+        out5 = self.maxpool(out5)
+        out = F.normalize(torch.cat((out1, out2, out3, out4, out5), 1))
+
+        return out
+
+class Inp_Model_2(nn.Module):
+    def __init__(self):#out_size,
+        super(Inp_Model_2, self).__init__()
+
+        self.inp_layer1 = Inp_Layer1(1, 10, 4, 3)
+        self.inp_layer2 = Inp_Layer1(50, 10, 4, 3)
 
         self.flat = nn.Flatten()
 
     def forward(self, x):
-        out1 = self.cnn1(x)
-        out1 = self.cnn2(out1)
-        out1 = self.cnn3(out1)
-        out1 = self.maxpool(out1)
 
-        out2 = self.cnn4(out1)
-        out2 = self.cnn5(out2)
-        out2 = self.cnn6(out2)
-        out2 = self.maxpool(out2)
+        out = self.inp_layer1(x)
+        out = self.inp_layer2(out)
+        out = self.flat(out)
 
-        out3 = self.cnn7(out2)
-        out3 = self.cnn8(out3)
-        out3 = self.maxpool(out3)
-        out4 = torch.squeeze(out3).transpose(-1, -2)
-        out4 = self.flat(out4)
+        return out
 
-        return out4
 
 class SiamNNL1(nn.Module):
     def __init__(self, cnn, flat_dim, out_dim):
         super(SiamNNL1, self).__init__()
         self.cnn = cnn
         self.fc1 = nn.Sequential(
-            nn.Linear(flat_dim, out_dim)
-            #nn.ReLU()
-            #nn.Linear(hidden_dim, out_dim),
-            #nn.Sigmoid()
-            #nn.Tanh()
-        )
-
-    def forward_once(self, x):
-        out = self.cnn(x)
-        out = self.fc1(out)
-
-        return out
-
-    def forward(self, x1, x2):
-        out1 = self.forward_once(x1)
-        out2 = self.forward_once(x2)
-
-        return out1, out2
-
-class SiamNNL1_s(nn.Module):
-    def __init__(self, cnn, flat_dim, out_dim):
-        super(SiamNNL1_s, self).__init__()
-        self.cnn = cnn
-        self.fc1 = nn.Sequential(
-            nn.Linear(flat_dim, out_dim),
-            #nn.ReLU()
-            #nn.Linear(hidden_dim, out_dim),
-            nn.Sigmoid()
-            #nn.Tanh()
-        )
-
-    def forward_once(self, x):
-        out = self.cnn(x)
-        out = self.fc1(out)
-
-        return out
-
-    def forward(self, x1, x2):
-        out1 = self.forward_once(x1)
-        out2 = self.forward_once(x2)
-
-        return out1, out2
-
-class SiamNNL1_nm(nn.Module):
-    def __init__(self, cnn, flat_dim, out_dim):
-        super(SiamNNL1_nm, self).__init__()
-        self.cnn = cnn
-        self.fc1 = nn.Sequential(
             nn.Linear(flat_dim, out_dim),
             nn.BatchNorm1d(out_dim)
             #nn.ReLU()
             #nn.Linear(hidden_dim, out_dim),
-            #nn.Sigmoid()
-            #nn.Tanh()
-        )
-
-    def forward_once(self, x):
-        out = self.cnn(x)
-        out = self.fc1(out)
-
-        return out
-
-    def forward(self, x1, x2):
-        out1 = self.forward_once(x1)
-        out2 = self.forward_once(x2)
-
-        return out1, out2
-
-class SiamNNL1_n(nn.Module):
-    def __init__(self, cnn, flat_dim, out_dim):
-        super(SiamNNL1_n, self).__init__()
-        self.cnn = cnn
-        self.fc1 = nn.Sequential(
-            nn.Linear(flat_dim, out_dim),
-            nn.LayerNorm(out_dim)
-            #nn.BatchNorm1d(out_dim)
-            #nn.ReLU()
-            #nn.Linear(hidden_dim, out_dim),
-            #nn.Sigmoid()
-            #nn.Tanh()
-        )
-
-    def forward_once(self, x):
-        out = self.cnn(x)
-        out = self.fc1(out)
-
-        return out
-
-    def forward(self, x1, x2):
-        out1 = self.forward_once(x1)
-        out2 = self.forward_once(x2)
-
-        return out1, out2
-
-
-class SiamNNL1_z4(nn.Module):
-    def __init__(self, cnn, flat_dim, out_dim):
-        super(SiamNNL1_z4, self).__init__()
-        self.cnn = cnn
-        self.fc1 = nn.Sequential(
-            nn.Linear(flat_dim, out_dim),
-            nn.LayerNorm(out_dim)
-            #nn.BatchNorm1d(out_dim)
-            #nn.ReLU()
-            #nn.Linear(hidden_dim, out_dim),
-            #nn.Sigmoid()
-            #nn.Tanh()
-        )
-
-    def forward_once(self, x):
-        out = self.cnn(x)
-        out = self.fc1(out)
-        out = out/torch.unsqueeze(torch.norm(out, dim=1), 0).T
-
-        return out
-
-    def forward(self, x1, x2):
-        out1 = self.forward_once(x1)
-        out2 = self.forward_once(x2)
-
-        return out1, out2
-
-class SiamNNL2(nn.Module):
-    def __init__(self, cnn, flat_dim, hidden_dim, out_dim):
-        super(SiamNNL2, self).__init__()
-        self.cnn = cnn
-        self.fc1 = nn.Sequential(
-            nn.Linear(flat_dim, hidden_dim),
-            nn.Linear(hidden_dim, out_dim)
             #nn.Sigmoid()
             #nn.Tanh()
         )

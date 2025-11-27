@@ -9,14 +9,12 @@ import h5py
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
-from siacnn_models_gpu2 import *
-from new_loss_model import *
-from data_reader_pn_ import *
+from functions import *
+from model_loss_train import *
+from data_reader_pn_ import data_load_bd2 
 
 
-def Training_Evaluation_Parameter_Set(d1, d2, rate, a_, path, num_test, num_train_valid, batch_size, delta, m_dim, num_b):
-
-    data_path = f'{path}'
+def Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test, batch_size, delta, m_dim, num_b):
 
     models_path = f'{path}models/'
     os.makedirs(models_path, exist_ok=True)
@@ -24,8 +22,8 @@ def Training_Evaluation_Parameter_Set(d1, d2, rate, a_, path, num_test, num_trai
     results_path = f'{path}results/'
     os.makedirs(results_path, exist_ok=True)
 
-
-    df_tr, df_v, df_test, train_rg = data_load_bd2(rate, d1, d2, data_path, num_test, num_train_valid)
+    #df_tr, df_v, df_test = data_load_bd_20m(rate, d1, d2, data_path, num_test, num_train_valid)
+    #df_tr, df_v, df_test = data_load_bd_100m(rate, d1, d2, data_path, num_test, num_train_valid)
 
     train_a, train_b, train_t, train_y = aby_sep(df_tr)
     valid_a, valid_b, valid_t, valid_y = aby_sep(df_v)
@@ -45,16 +43,16 @@ def Training_Evaluation_Parameter_Set(d1, d2, rate, a_, path, num_test, num_trai
     cnnk = Inp_Model_2().to(device)
     flat_dim = cnnk(a_).shape[1]
     out_dim = num_b*m_dim
-    siacnn2 = SiamNNL1_nm(cnnk, flat_dim, out_dim).to(device)
+    siacnn2 = SiamNNL1(cnnk, flat_dim, out_dim).to(device)
     ID = f'{num_b}k_{m_dim}m_({d1}-{d2})s_{delta}delta'
     print(f'{ID} model construct')
     trainer1 = Trainer1(train_a, train_b, train_t, siacnn2, loss0, delta, batch_size)
     print('##########train start###########')
     lr = 0.002 #learning rate, initial = 0.001 
-    num_epo = 30 #numbers of epoch
+    num_epo = 5 #numbers of epoch
     loss_t = []       
     loss_v = [] 
-    for i in range(3):
+    for i in range(2):
         lr *= 0.5
         loss1_, loss11_ = trainer1.run(num_epo, lr, valid_a, valid_b, valid_t, m_dim, num_b, device)
         loss_t += loss1_
@@ -97,29 +95,57 @@ USE_CUDA = torch.cuda.is_available()
 device = torch.device('cuda:0' if USE_CUDA else 'cpu')
 
 
-def main():
+# for N = 20
+
+def main_20n():
     # run example 
     N_len = 20  # sequence length N
     d1, d2 = [1, 3]  # [[1, 2], [2, 3], [2, 4], [3, 4], [3, 5]]
     m_dim = 40  # dimension of embedding vectors m
-    batch_size = 100
+    batch_size = 10000
     num_b = 20  # number of embedding vectors K
+
     delta = 10
     a_ = torch.rand(100, 1, 4, N_len).to(device)
     rate = 0.9  # train/valid = 9:1
-
-    path = '/storage/home/xvy5180/work/seqhash/seq_20n/'
+    
+    path = '~/'
+    data_path = '~/data/'
     # Make sure folder exists
-    os.makedirs(path, exist_ok=True)
 
     num_test, num_train_valid = [20000, 100000]  
     # e.g., 20000 pairs for test, 100000 for train+valid
 
-    Training_Evaluation_Parameter_Set(d1, d2, rate, a_, path, num_test, num_train_valid, batch_size, delta, m_dim, num_b)
+    df_tr, df_v, df_test = data_load_bd_20m(rate, d1, d2, data_path, num_test, num_train_valid)
+    Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test, batch_size, delta, m_dim, num_b)
 
+#for N = 100
+
+def main_100n():
+    # run example 
+    N_len = 100  # sequence length N
+    d1, d2 = [5, 6]  # [[5, 10], [10, 11], [10, 20]]
+    m_dim = 40  # dimension of embedding vectors m
+    batch_size = 2000
+    num_b = 100  # number of embedding vectors K
+    
+    delta = 10
+    a_ = torch.rand(100, 1, 4, N_len).to(device)
+    rate = 0.9  # train/valid = 9:1
+    
+    path = '~/'
+    data_path = '~/data/'
+    # Make sure folder exists
+
+    num_test, num_train_valid = [20000, 100000]  
+    # e.g., 20000 pairs for test, 100000 for train+valid
+
+    df_tr, df_v, df_test = data_load_bd_100m(rate, d1, d2, data_path, num_test, num_train_valid)
+    Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test, batch_size, delta, m_dim, num_b)
+    
 if __name__ == "__main__":
-    main()
-
+    main_20n()
+    #main_100n()
 
 
 
