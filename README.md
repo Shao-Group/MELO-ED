@@ -19,7 +19,7 @@ df_tr, df_v, df_test = data_load_bd2(rate, d1, d2, data_path, num_test, num_trai
 ```
 > which require the following parameters: `(d1, d2)`; `rate` of train and valid (like `rate = 0.9`means 90% of whole set for training and 10% for valdiation); `num_test` is the number you need for each edit distance for testing; `num_train_valid` is the number you need for each edit distance for training and validation.
 
-- Model training: the structure of Siamese model, hinge loss, and train functions are saved in `model_loss_train.py`. Run `python runner.py` to train the model and evaluate its performance by displaying the loss per episode and accuracy. A quick example show how to train a (1, 3)-LSME function for sequence length N = 20, k = 20, m = 40, δ = 10:
+- Model train: the structure of Siamese model, hinge loss, and train functions are saved in `model_loss_train.py`. Run `python runner.py` to train the model and evaluate its performance by displaying the loss per episode and accuracy. A quick example show how to train a (1, 3)-LSME function for sequence length N = 20, k = 20, m = 40, δ = 10:
 
 ``` python
 def main_20n():
