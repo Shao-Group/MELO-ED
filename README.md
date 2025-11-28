@@ -25,12 +25,12 @@ df_tr, df_v, df_test = data_load_bd2(rate, d1, d2, data_path, num_test, num_trai
 def main_20n():
     # run example 
     N_len = 20  # sequence length N
-    d1, d2 = [1, 3]  # [[1, 2], [2, 3], [2, 4], [3, 4], [3, 5]]
+    d1, d2 = [1, 3] 
     m_dim = 40  # dimension of embedding vectors m
     batch_size = 10000
     num_b = 20  # number of embedding vectors K
 
-    delta = 10
+    delta = 10 # δ
     a_ = torch.rand(100, 1, 4, N_len).to(device)
     rate = 0.9  # train/valid = 9:1
 
