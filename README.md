@@ -8,7 +8,7 @@ Usage
 
 There is an example of using our code: a framework to train an (d1, d2)-LSME function with customized parameters: N, length of sequence; k, number of embedding; m dimensions, and threshold δ. You can train the model using the simulation dataset provided at [zenodo](https://zenodo.org/uploads/17728758), with N = 20 or N = 100, or generate simulation sequences of the length you need with the code at [simulation](https://github.com/Shao-Group/lsb-learn/tree/master/simulation).
 
-- Installation: `python vision >= 3.9`; `conda --version 24.11.3`;  `torch (2.7.1+cu128)`
+- Installation: `python vision >= 3.9`; `conda version 24.11.3`;  `torch (2.7.1+cu128)`
 
 - Train/valid/test data load by `data_reader_pn_.py`: 
 
