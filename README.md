@@ -22,24 +22,26 @@ df_tr, df_v, df_test = data_load_bd2(rate, d1, d2, data_path, num_test, num_trai
 - Model training: the structure of Siamese model, hinge loss, and train functions are saved in `model_loss_train.py`. Run `python runner.py` to train the model and evaluate its performance by displaying the loss per episode and accuracy. A quick example show how to train a (1, 3)-LSME function for sequence length N = 20, k = 20, m = 40, δ = 10:
 
 ``` python
-def main():
+def main_20n():
     # run example 
     N_len = 20  # sequence length N
-    d1, d2 = [1, 3] 
+    d1, d2 = [1, 3]  # [[1, 2], [2, 3], [2, 4], [3, 4], [3, 5]]
     m_dim = 40  # dimension of embedding vectors m
-    batch_size = 5000
+    batch_size = 10000
     num_b = 20  # number of embedding vectors K
+
     delta = 10
     a_ = torch.rand(100, 1, 4, N_len).to(device)
     rate = 0.9  # train/valid = 9:1
 
-    data_path = '~/data/seq20n/'
     path = '~/'
+    data_path = '~/data/'
 
-    num_test, num_train_valid = [20000, 100000]  
-    # e.g., 20000 per edit pairs for test, 100000 for train+valid
+    num_test, num_train_valid = [20000, 100000]
+    # e.g., 20000 pairs for test, 100000 for train+valid
 
-    Training_Evaluation_Parameter_Set(d1, d2, rate, a_, data_path, path, num_test, num_train_valid, batch_size, delta, m_dim, num_b)
+    df_tr, df_v, df_test = data_load_bd_20m(rate, d1, d2, data_path, num_test, num_train_valid)
+    Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test, batch_size, delta, m_dim, num_b)
 
 ```
 
