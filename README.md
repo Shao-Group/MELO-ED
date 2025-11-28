@@ -43,8 +43,8 @@ def main():
 
 ```
 
-The structure and parameter of trained model will be saved at `~/models/SiamNNL1_nm_Inp_Model_2_20k_40m_(1-3)s_10delta.pt`, or you can directly use the model we trained which are saved at [zenodo](https://zenodo.org/uploads/17728758). The performance of the model is saved at `~/results/`
+> The structure and parameter of trained model will be saved at `~/models/SiamNNL1_nm_Inp_Model_2_20k_40m_(1-3)s_10delta.pt`, or you can directly use the model we trained which are saved at [zenodo](https://zenodo.org/uploads/17728758). The performance of the model is saved at `~/results/`
 
-- Embedding generation: After finishing the step of training or loading the models, run `python embedding_generator.py` to get embeddings of sequences. With the generated embedding, you can move to the step of neighbor search procedure by [neighbor_index_experiments](https://github.com/Shao-Group/MELO-ED/tree/master/neighbor_index_experiments). 
+- Embedding generation and following step: After finishing the step of training or loading the models, run `python embedding_generator.py` to get embeddings of sequences. With the generated embedding, you can move to the step of neighbor search procedure by [neighbor_index_experiments](https://github.com/Shao-Group/MELO-ED/tree/master/neighbor_index_experiments). 
 
 
