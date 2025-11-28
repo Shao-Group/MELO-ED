@@ -49,10 +49,10 @@ def Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test, ba
     trainer1 = Trainer1(train_a, train_b, train_t, siacnn2, loss0, delta, batch_size)
     print('##########train start###########')
     lr = 0.002 #learning rate, initial = 0.001 
-    num_epo = 5 #numbers of epoch
+    num_epo = 30 #numbers of epoch
     loss_t = []       
     loss_v = [] 
-    for i in range(2):
+    for i in range(5):
         lr *= 0.5
         loss1_, loss11_ = trainer1.run(num_epo, lr, valid_a, valid_b, valid_t, m_dim, num_b, device)
         loss_t += loss1_
