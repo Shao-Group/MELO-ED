@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, Dataset
 import numpy as np
 from functions import *
 from model_loss_train import *
-from data_reader_pn_ import data_load_bd2 
+from data_reader_pn_ import data_load_bd_20n, data_load_bd_100n 
 
 
 def Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test, batch_size, delta, m_dim, num_b):
@@ -22,8 +22,8 @@ def Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test, ba
     results_path = f'{path}results/'
     os.makedirs(results_path, exist_ok=True)
 
-    #df_tr, df_v, df_test = data_load_bd_20m(rate, d1, d2, data_path, num_test, num_train_valid)
-    #df_tr, df_v, df_test = data_load_bd_100m(rate, d1, d2, data_path, num_test, num_train_valid)
+    #df_tr, df_v, df_test = data_load_bd_20n(rate, d1, d2, data_path, num_test, num_train_valid)
+    #df_tr, df_v, df_test = data_load_bd_100n(rate, d1, d2, data_path, num_test, num_train_valid)
 
     train_a, train_b, train_t, train_y = aby_sep(df_tr)
     valid_a, valid_b, valid_t, valid_y = aby_sep(df_v)
@@ -116,7 +116,7 @@ def main_20n():
     num_test, num_train_valid = [20000, 100000]  
     # e.g., 20000 pairs for test, 100000 for train+valid
 
-    df_tr, df_v, df_test = data_load_bd_20m(rate, d1, d2, data_path, num_test, num_train_valid)
+    df_tr, df_v, df_test = data_load_bd_20n(rate, d1, d2, data_path, num_test, num_train_valid)
     Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test, batch_size, delta, m_dim, num_b)
 
 #for N = 100
@@ -140,7 +140,7 @@ def main_100n():
     num_test, num_train_valid = [20000, 100000]  
     # e.g., 20000 pairs for test, 100000 for train+valid
 
-    df_tr, df_v, df_test = data_load_bd_100m(rate, d1, d2, data_path, num_test, num_train_valid)
+    df_tr, df_v, df_test = data_load_bd_100n(rate, d1, d2, data_path, num_test, num_train_valid)
     Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test, batch_size, delta, m_dim, num_b)
     
 if __name__ == "__main__":

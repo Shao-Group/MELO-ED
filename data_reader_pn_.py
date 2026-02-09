@@ -1,7 +1,8 @@
 import numpy 
 import pandas as pd
 import random
-from siacnn_models_gpu2 import data_reader1, data_reader3
+#from siacnn_models_gpu2 import data_reader1, data_reader3
+from functions import data_reader1, data_reader3
 
 #read data
 
