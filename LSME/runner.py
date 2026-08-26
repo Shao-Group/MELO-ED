@@ -109,8 +109,8 @@ def main_20n():
     a_ = torch.rand(100, 1, 4, N_len).to(device)
     rate = 0.9  # train/valid = 9:1
     
-    path = '~/'
-    data_path = '~/data/'
+    path = './'
+    data_path = './data/'
     # Make sure folder exists
 
     num_test, num_train_valid = [20000, 100000]  
