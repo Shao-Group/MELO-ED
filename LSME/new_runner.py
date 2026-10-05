@@ -63,7 +63,8 @@ def Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test,
     results_path = f'{path}results/'
     os.makedirs(results_path, exist_ok=True)
 
-    ID = f'{num_b}k_{m_dim}m_({d1}-{d2})s_{delta}delta'
+    n_len = int(a_.shape[-1])
+    ID = f'{n_len}n_{num_b}k_{m_dim}m_({d1}-{d2})s_{delta}delta'
     encoder_file = os.path.join(
         models_path,
         _tagged_filename(
@@ -121,6 +122,11 @@ def Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test,
     flat_dim = cnnk(a_).shape[1]
     out_dim = num_b*m_dim
     siacnn2 = SiamNNL1(cnnk, flat_dim, out_dim).to(device)
+    # Store the experiment shape on the full-model checkpoint so inference
+    # tools do not need to reconstruct it from filenames or architecture.
+    siacnn2.n_len = n_len
+    siacnn2.num_b = int(num_b)
+    siacnn2.m_dim = int(m_dim)
     print(f'{ID} model construct')
     trainer1 = Trainer1(train_a, train_b, train_t, siacnn2, loss0, delta, batch_size)
     print('##########train start###########')
@@ -128,7 +134,7 @@ def Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test,
     num_epo = 40 #numbers of epoch
     loss_t = []       
     loss_v = [] 
-    for i in range(4):
+    for i in range(2):
         lr *= 0.5
         loss1_, loss11_ = trainer1.run(num_epo, lr, valid_a, valid_b, valid_t, m_dim, num_b, device)
         loss_t += loss1_

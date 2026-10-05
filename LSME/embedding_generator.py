@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+import re
 
 import h5py
 import numpy as np
@@ -112,6 +113,130 @@ def load_model(model_file):
     return model
 
 
+def _positive_integer_attribute(model, name):
+    value = getattr(model, name, None)
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return None
+
+
+def _infer_num_b(model, model_file):
+    """Infer num_b from checkpoint metadata or the legacy filename."""
+    metadata_value = _positive_integer_attribute(model, 'num_b')
+    if metadata_value is not None:
+        return metadata_value
+
+    match = re.search(
+        r'(?:^|_)(?P<num_b>\d+)k_(?P<m_dim>\d+)m(?:_|$)',
+        Path(model_file).name,
+    )
+    if match is not None:
+        return int(match.group('num_b'))
+
+    raise ValueError(
+        'could not infer num_b: the checkpoint has no num_b metadata and its '
+        'filename does not contain the legacy "<num_b>k_<m_dim>m" pattern. '
+        'Supply --num_b explicitly.'
+    )
+
+
+def _projection_input_width(model):
+    projection = getattr(model, 'fc1', None)
+    if projection is None or not hasattr(projection, 'modules'):
+        raise ValueError('the model does not expose an fc1 projection module')
+    for module in projection.modules():
+        in_features = getattr(module, 'in_features', None)
+        if isinstance(in_features, int) and in_features > 0:
+            return in_features
+    raise ValueError('could not find a linear input width in model.fc1')
+
+
+def _infer_n_len(model, model_file=None, max_length=100000):
+    """Infer sequence length from metadata, filename, or encoder dimensions."""
+    metadata_value = _positive_integer_attribute(model, 'n_len')
+    if metadata_value is not None:
+        return metadata_value
+
+    if model_file is not None:
+        match = re.search(
+            r'(?:^|_)(?P<n_len>\d+)n(?:_|$)',
+            Path(model_file).name,
+        )
+        if match is not None:
+            return int(match.group('n_len'))
+
+    encoder = getattr(model, 'cnn', None)
+    if encoder is None:
+        raise ValueError('the model has no n_len metadata or cnn encoder')
+    target_width = _projection_input_width(model)
+
+    try:
+        model_device = next(encoder.parameters()).device
+    except (StopIteration, AttributeError):
+        model_device = device
+
+    def encoded_width(length):
+        try:
+            dummy = torch.zeros(1, 1, 4, length, device=model_device)
+            with torch.no_grad():
+                encoded = encoder(dummy)
+            return encoded.reshape(encoded.shape[0], -1).shape[1]
+        except (RuntimeError, ValueError):
+            # Pooling/convolution may reject candidate lengths that are too
+            # short; those candidates are below the usable search range.
+            return None
+
+    upper = 4
+    while upper <= max_length:
+        width = encoded_width(upper)
+        if width is not None and width >= target_width:
+            break
+        upper *= 2
+    else:
+        raise ValueError(
+            f'could not match encoder output width {target_width} to a '
+            f'sequence length up to {max_length}'
+        )
+
+    lower = 1
+    match = None
+    while lower <= upper:
+        candidate = (lower + upper) // 2
+        width = encoded_width(candidate)
+        if width is None or width < target_width:
+            lower = candidate + 1
+        elif width > target_width:
+            upper = candidate - 1
+        else:
+            match = candidate
+            upper = candidate - 1
+
+    if match is None:
+        raise ValueError(
+            f'no sequence length produces the projection input width '
+            f'{target_width}'
+        )
+    if encoded_width(match + 1) == target_width:
+        raise ValueError(
+            f'sequence length is ambiguous: multiple lengths produce encoder '
+            f'width {target_width}. Supply --n_len explicitly.'
+        )
+    return match
+
+
+def infer_model_shape(model, model_file, n_len=None, num_b=None):
+    """Resolve n_len and num_b, honoring explicit compatibility overrides."""
+    resolved_n_len = (
+        n_len if n_len is not None else _infer_n_len(model, model_file)
+    )
+    resolved_num_b = num_b if num_b is not None else _infer_num_b(
+        model, model_file
+    )
+    if resolved_n_len <= 0 or resolved_num_b <= 0:
+        raise ValueError('n_len and num_b must be positive')
+    return resolved_n_len, resolved_num_b
+
+
 def _reshape_embeddings(output, num_b):
     """Infer m_dim and reshape a flat model output to [rows, num_b, m_dim]."""
     if num_b <= 0:
@@ -217,14 +342,18 @@ def main():
     parser = argparse.ArgumentParser(
         description='Generate embeddings from a trained Siamese model.',
     )
-    parser.add_argument('--n_len', '--N_len', dest='n_len', type=int,
-                        required=True, help='Expected sequence length')
+    parser.add_argument(
+        '--n_len', '--N_len', dest='n_len', type=int, default=None,
+        help='Optional sequence-length override for nonstandard legacy models',
+    )
     parser.add_argument('--model_file', type=str, required=True,
                         help='Full Siamese model checkpoint saved by new_runner.py')
     parser.add_argument('--output_file', type=str, required=True,
                         help='Output HDF5 file')
-    parser.add_argument('--num_b', type=int, required=True,
-                        help='Number of embedding vectors')
+    parser.add_argument(
+        '--num_b', type=int, default=None,
+        help='Optional embedding-count override for nonstandard legacy models',
+    )
     parser.add_argument('--batch_size', type=int, default=1000,
                         help='Inference batch size')
     parser.add_argument(
@@ -254,9 +383,9 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.n_len <= 0:
+    if args.n_len is not None and args.n_len <= 0:
         parser.error('--n_len must be positive')
-    if args.num_b <= 0:
+    if args.num_b is not None and args.num_b <= 0:
         parser.error('--num_b must be positive')
     if args.batch_size <= 0:
         parser.error('--batch_size must be positive')
@@ -266,6 +395,13 @@ def main():
         parser.error('--num_records must be positive or -1')
 
     model = load_model(args.model_file)
+    try:
+        n_len, num_b = infer_model_shape(
+            model, args.model_file, args.n_len, args.num_b
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+    print(f'Inferred model shape: n_len={n_len}, num_b={num_b}')
 
     if args.data_file is not None:
         dataset_names = args.dataset_names or ['embed_a', 'embed_b']
@@ -275,10 +411,10 @@ def main():
             parser.error('--dataset_names must be unique')
         num_pairs = 10000 if args.num_records is None else args.num_records
         seq_a, seq_b = read_sequence_pairs(
-            args.data_file, args.n_len, num_pairs
+            args.data_file, n_len, num_pairs
         )
         embed_a, embed_b, m_dim = generate_pair_embeddings(
-            model, seq_a, seq_b, args.batch_size, args.num_b
+            model, seq_a, seq_b, args.batch_size, num_b
         )
         datasets = {
             dataset_names[0]: embed_a,
@@ -294,16 +430,16 @@ def main():
             parser.error('--dataset_names must be unique')
         num_sequences = -1 if args.num_records is None else args.num_records
         sequences_a = read_sequences(
-            args.input_files[0], args.n_len, num_sequences
+            args.input_files[0], n_len, num_sequences
         )
         sequences_b = read_sequences(
-            args.input_files[1], args.n_len, num_sequences
+            args.input_files[1], n_len, num_sequences
         )
         embed_a, m_dim_a = generate_embeddings(
-            model, sequences_a, args.batch_size, args.num_b
+            model, sequences_a, args.batch_size, num_b
         )
         embed_b, m_dim_b = generate_embeddings(
-            model, sequences_b, args.batch_size, args.num_b
+            model, sequences_b, args.batch_size, num_b
         )
         if m_dim_a != m_dim_b:
             raise ValueError(
@@ -323,16 +459,16 @@ def main():
             parser.error('single-file input requires exactly one --dataset_names')
         num_sequences = -1 if args.num_records is None else args.num_records
         sequences = read_sequences(
-            args.input_file, args.n_len, num_sequences
+            args.input_file, n_len, num_sequences
         )
         embeddings, m_dim = generate_embeddings(
-            model, sequences, args.batch_size, args.num_b
+            model, sequences, args.batch_size, num_b
         )
         datasets = {dataset_names[0]: embeddings}
         counts = [len(sequences)]
 
     print(
-        f'Embedding shape: num_b={args.num_b}, inferred m_dim={m_dim}; '
+        f'Embedding shape: num_b={num_b}, inferred m_dim={m_dim}; '
         f'input counts={counts}'
     )
     write_embeddings(args.output_file, datasets)
