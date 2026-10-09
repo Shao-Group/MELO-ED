@@ -1,5 +1,9 @@
 import os
 import argparse
+from contextlib import contextmanager
+from datetime import datetime, timedelta
+import time
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,6 +17,32 @@ import numpy as np
 from functions import *
 from model_loss_train import *
 from data_reader_pn_ import data_load_bd
+
+
+def _log(message):
+    """Print a timestamped, immediately flushed message for Slurm logs."""
+    timestamp = datetime.now().astimezone().isoformat(timespec='seconds')
+    print(f'[{timestamp}] {message}', flush=True)
+
+
+def _format_duration(seconds):
+    return str(timedelta(seconds=round(seconds)))
+
+
+@contextmanager
+def _timed_step(label):
+    """Log the start, completion, and elapsed time of a processing step."""
+    started = time.perf_counter()
+    _log(f'START {label}')
+    try:
+        yield
+    except Exception:
+        elapsed = _format_duration(time.perf_counter() - started)
+        _log(f'FAILED {label} after {elapsed}')
+        raise
+    else:
+        elapsed = _format_duration(time.perf_counter() - started)
+        _log(f'END {label} ({elapsed})')
 
 
 def _expand_slurm_tokens(value):
@@ -55,6 +85,7 @@ def _tagged_filename(stem, extension, prefix='', suffix=''):
 
 def Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test,
                                       batch_size, delta, m_dim, num_b,
+                                      num_epo, num_rounds,
                                       output_prefix='', output_suffix=''):
 
     models_path = f'{path}models/'
@@ -98,62 +129,84 @@ def Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test,
             f'{formatted_paths}\nChoose a different --output_prefix or --output_suffix.'
         )
 
-    print('Output files:')
-    print(f'  encoder: {encoder_file}')
-    print(f'  model:   {siamese_file}')
-    print(f'  results: {results_file}')
+    _log('Output files:')
+    _log(f'  encoder: {encoder_file}')
+    _log(f'  model:   {siamese_file}')
+    _log(f'  results: {results_file}')
 
-    train_a, train_b, train_t, train_y = aby_sep(df_tr)
-    valid_a, valid_b, valid_t, valid_y = aby_sep(df_v)
-    test_a, test_b, test_t, test_y = aby_sep(df_test)
+    with _timed_step(f'encode training split ({len(df_tr)} rows)'):
+        train_a, train_b, train_t, train_y = aby_sep(df_tr)
+    with _timed_step(f'encode validation split ({len(df_v)} rows)'):
+        valid_a, valid_b, valid_t, valid_y = aby_sep(df_v)
+    with _timed_step(f'encode test split ({len(df_test)} rows)'):
+        test_a, test_b, test_t, test_y = aby_sep(df_test)
 
-    eds = ed_sp(df_tr)
-    print('edits number (train)')
+    with _timed_step('build training edit-distance index'):
+        eds = ed_sp(df_tr)
+    _log('Edit-distance counts (train):')
     ed_num_train = []
     for i in sorted(eds.keys()):
-        print('ed = ', i, ': ', len(eds[i]))
+        _log(f'  ed={i}: {len(eds[i])}')
         ed_num_train.append([i, len(eds[i])])
 
-    eds_t = ed_sp(df_test)
-    print('data loaded')
+    with _timed_step('build test edit-distance index'):
+        eds_t = ed_sp(df_test)
+    _log('Data encoding and indexing complete')
     #for num_b in num_b_set:
 
-    cnnk = Inp_Model_2().to(device)
-    flat_dim = cnnk(a_).shape[1]
-    out_dim = num_b*m_dim
-    siacnn2 = SiamNNL1(cnnk, flat_dim, out_dim).to(device)
-    # Store the experiment shape on the full-model checkpoint so inference
-    # tools do not need to reconstruct it from filenames or architecture.
-    siacnn2.n_len = n_len
-    siacnn2.num_b = int(num_b)
-    siacnn2.m_dim = int(m_dim)
-    print(f'{ID} model construct')
+    with _timed_step('construct model'):
+        cnnk = Inp_Model_2().to(device)
+        flat_dim = cnnk(a_).shape[1]
+        out_dim = num_b*m_dim
+        siacnn2 = SiamNNL1(cnnk, flat_dim, out_dim).to(device)
+        # Store the experiment shape on the full-model checkpoint so inference
+        # tools do not need to reconstruct it from filenames or architecture.
+        siacnn2.n_len = n_len
+        siacnn2.num_b = int(num_b)
+        siacnn2.m_dim = int(m_dim)
+    _log(f'{ID} model constructed')
     trainer1 = Trainer1(train_a, train_b, train_t, siacnn2, loss0, delta, batch_size)
-    print('##########train start###########')
+    _log('########## TRAIN START ##########')
     lr = 0.002 #learning rate, initial = 0.001 
-    num_epo = 40 #numbers of epoch
     loss_t = []       
     loss_v = [] 
-    for i in range(2):
+    _log(
+        f'Training schedule: {num_rounds} rounds × {num_epo} epochs '
+        f'= {num_rounds * num_epo} total epochs'
+    )
+    for i in range(num_rounds):
         lr *= 0.5
-        loss1_, loss11_ = trainer1.run(num_epo, lr, valid_a, valid_b, valid_t, m_dim, num_b, device)
+        with _timed_step(
+            f'training round {i + 1}/{num_rounds} '
+            f'({num_epo} epochs, lr={lr:g})'
+        ):
+            loss1_, loss11_ = trainer1.run(
+                num_epo, lr, valid_a, valid_b, valid_t,
+                m_dim, num_b, device,
+            )
         loss_t += loss1_
         loss_v += loss11_ 
 
-        torch.save(cnnk, encoder_file)
-        torch.save(siacnn2, siamese_file)
+        with _timed_step(f'save checkpoints after round {i + 1}'):
+            torch.save(cnnk, encoder_file)
+            torch.save(siacnn2, siamese_file)
         
-    print('##########train end###########')
+    _log('########## TRAIN END ##########')
 
-    print('###########TESTING###############')
+    _log('########## TESTING START ##########')
 
-    print('breakdown acc')
-    print('train: ')
-    res, acc_tr = breakdown_acc(eds, d1, d2, siacnn2, acc_count_0, batch_size, delta, m_dim, num_b, device)
-    print('acc_train: '+str(acc_tr))
-    print('test')
-    res_t, acc_t = breakdown_acc(eds_t, d1, d2, siacnn2, acc_count_0, batch_size, delta, m_dim, num_b, device)
-    print('acc_test: '+str(acc_t))
+    with _timed_step('evaluate training split'):
+        res, acc_tr = breakdown_acc(
+            eds, d1, d2, siacnn2, acc_count_0,
+            batch_size, delta, m_dim, num_b, device,
+        )
+    _log(f'acc_train: {acc_tr}')
+    with _timed_step('evaluate test split'):
+        res_t, acc_t = breakdown_acc(
+            eds_t, d1, d2, siacnn2, acc_count_0,
+            batch_size, delta, m_dim, num_b, device,
+        )
+    _log(f'acc_test: {acc_t}')
 
     bd_res = []
     for i in sorted(res.keys()):
@@ -163,12 +216,14 @@ def Training_Evaluation_Parameter_Set(d1, d2, a_, path, df_tr, df_v, df_test,
     for i in sorted(res_t.keys()):
         bd_res_t.append([i, res_t[i]])
 
-    with h5py.File(results_file, 'x') as results_handle:
-        results_handle.create_dataset('loss_t', data=np.array(loss_t))
-        results_handle.create_dataset('loss_v', data=np.array(loss_v))
-        results_handle.create_dataset('accs', data=np.array([acc_tr, acc_t]))
-        results_handle.create_dataset('bd_train', data=np.array(bd_res))
-        results_handle.create_dataset('bd_test', data=np.array(bd_res_t))
+    with _timed_step('write results HDF5'):
+        with h5py.File(results_file, 'x') as results_handle:
+            results_handle.create_dataset('loss_t', data=np.array(loss_t))
+            results_handle.create_dataset('loss_v', data=np.array(loss_v))
+            results_handle.create_dataset('accs', data=np.array([acc_tr, acc_t]))
+            results_handle.create_dataset('bd_train', data=np.array(bd_res))
+            results_handle.create_dataset('bd_test', data=np.array(bd_res_t))
+    _log('########## TESTING END ##########')
 
 
 #CUDA
@@ -209,6 +264,15 @@ def main():
                         help='Batch size')
     parser.add_argument('--num_b', type=int, required=True,
                         help='Number of embedding vectors')
+    parser.add_argument(
+        '--num_epo', type=int, default=40,
+        help='Epochs per learning-rate round. Default: 40.',
+    )
+    parser.add_argument(
+        '--num_rounds', type=int, default=4,
+        help='Number of learning-rate rounds. Total epochs are '
+             'num_rounds * num_epo. Default: 4.',
+    )
     parser.add_argument('--delta', type=int, default=10)
     parser.add_argument('--rate', type=float, default=0.9,
                         help='Fraction of train/validation data assigned to training')
@@ -228,9 +292,12 @@ def main():
     if not 0 < args.rate < 1:
         parser.error('--rate must be between 0 and 1')
 
-    if min(args.m_dim, args.batch_size, args.num_b, args.delta,
-           args.num_test, args.num_train_valid) <= 0:
-        parser.error('size, count, dimension, and delta arguments must be positive')
+    if min(args.m_dim, args.batch_size, args.num_b, args.num_epo,
+           args.num_rounds, args.delta, args.num_test,
+           args.num_train_valid) <= 0:
+        parser.error(
+            'size, count, dimension, epoch, and delta arguments must be positive'
+        )
     if args.max_test_ed is not None and args.max_test_ed < args.d2:
         parser.error('--max_test_ed must be greater than or equal to --d2')
 
@@ -242,24 +309,37 @@ def main():
     except ValueError as exc:
         parser.error(str(exc))
 
-    print(f'N={args.n_len}, d1={args.d1}, d2={args.d2}, m_dim={args.m_dim}, '
-          f'batch_size={args.batch_size}, num_b={args.num_b}, device={device}')
-    print(f'Train files: {args.train_files}')
-    print(f'Test file: {args.test_file}')
-    print(f'Output path: {out_path}')
-    print(f'Output prefix: {output_prefix or "(none)"}')
-    print(f'Output suffix: {output_suffix or "(none)"}')
+    _log('Run started')
+    _log(
+        f'N={args.n_len}, d1={args.d1}, d2={args.d2}, m_dim={args.m_dim}, '
+        f'batch_size={args.batch_size}, num_b={args.num_b}, '
+        f'num_epo={args.num_epo}, num_rounds={args.num_rounds}, '
+        f'total_epochs={args.num_epo * args.num_rounds}, device={device}'
+    )
+    _log(f'Train files: {args.train_files}')
+    _log(f'Test file: {args.test_file}')
+    _log(f'Output path: {out_path}')
+    _log(f'Output prefix: {output_prefix or "(none)"}')
+    _log(f'Output suffix: {output_suffix or "(none)"}')
 
-    df_tr, df_v, df_test = data_load_bd(
-        args.rate, args.d1, args.d2, args.train_files, args.test_file,
-        args.num_test, args.num_train_valid, args.max_test_ed,
+    with _timed_step('load and boundary-sample input data'):
+        df_tr, df_v, df_test = data_load_bd(
+            args.rate, args.d1, args.d2, args.train_files, args.test_file,
+            args.num_test, args.num_train_valid, args.max_test_ed,
+        )
+    _log(
+        f'DataFrame sizes: train={len(df_tr)}, validation={len(df_v)}, '
+        f'test={len(df_test)}'
     )
-    a_ = torch.rand(100, 1, 4, args.n_len).to(device)
-    Training_Evaluation_Parameter_Set(
-        args.d1, args.d2, a_, out_path, df_tr, df_v, df_test,
-        args.batch_size, args.delta, args.m_dim, args.num_b,
-        output_prefix, output_suffix,
-    )
+    with _timed_step('create model shape probe tensor'):
+        a_ = torch.rand(100, 1, 4, args.n_len).to(device)
+    with _timed_step('training/evaluation pipeline'):
+        Training_Evaluation_Parameter_Set(
+            args.d1, args.d2, a_, out_path, df_tr, df_v, df_test,
+            args.batch_size, args.delta, args.m_dim, args.num_b,
+            args.num_epo, args.num_rounds, output_prefix, output_suffix,
+        )
+    _log('Run completed successfully')
     
 if __name__ == "__main__":
     main()
